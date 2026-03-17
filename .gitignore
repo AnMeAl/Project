@@ -1,0 +1,33 @@
+# Виртуальное окружение
+.venv/
+venv/
+ENV/
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Тесты
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Системные файлы
+.DS_Store
+
+# DVC
+.dvc/tmp/
+.dvc/cache/
+.dvc/tmp/
