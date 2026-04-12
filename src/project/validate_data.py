@@ -1,189 +1,90 @@
 import pandas as pd
-import pandera as pa
+import pandera.pandas as pa
 from pandera import Column, Check, DataFrameSchema
 import glob
 import os
 from datetime import datetime
-import logging
 
 def create_schema():
     schema = DataFrameSchema(
         columns={
-            'Цена': Column(
-                float,
-                checks=[
-                    Check.gt(10000, error="Цена должна быть больше 100 000 ₽"),
-                    Check.lt(100000000, error="Цена должна быть меньше 100 000 000 ₽"),
-                    Check(lambda x: x > 0, element_wise=True, error="Цена должна быть положительной")
-                ],
-                nullable=True,
-                description="Цена в рублях"
-            ),
-            'Площадь': Column(
-                float,
-                checks=[
-                    Check.gt(10, error="Площадь должна быть больше 10 м²"),
-                    Check.lt(500, error="Площадь должна быть меньше 500 м²"),
-                    Check(lambda x: x > 0, element_wise=True, error="Площадь должна быть положительной")
-                ],
-                nullable=True,
-                description="Общая площадь в м²"
-            ),
-            'Количество комнат': Column(
-                int,
-                checks=[
-                    Check.in_range(1, 5, error="Количество комнат должно быть от 1 до 5"),
-                    Check(lambda x: x > 0, element_wise=True, error="Количество комнат должно быть положительным")
-                ],
-                nullable=True,
-                description="Количество комнат"
-            ),
-            'Этаж': Column(
-                int,
-                checks=[
-                    Check.gt(0, error="Этаж должен быть больше 0"),
-                    Check.lt(100, error="Этаж должен быть меньше 100")
-                ],
-                nullable=True,
-                description="Этаж квартиры"
-            ),
-            'Количество этажей в доме': Column(
-                int,
-                checks=[
-                    Check.gt(0, error="Количество этажей должно быть больше 0"),
-                    Check.lt(100, error="Количество этажей должно быть меньше 100")
-                ],
-                nullable=True,
-                description="Всего этажей в доме"
-            ),
-            'Адрес': Column(
-                str,
-                checks=[
-                    Check.str_length(min_value=5, max_value=500, error="Длина адреса должна быть от 5 до 500 символов")
-                ],
-                nullable=True,
-                description="Адрес квартиры"
-            ),
-            'Описание': Column(
-                str,
-                nullable=True,
-                description="Текстовое описание квартиры"
-            ),
-            'S3_изображения': Column(
-                object,
-                nullable=True,
-                description="Список S3 URI загруженных изображений"
-            ),
-            'Количество_фото': Column(
-                int,
-                checks=[
-                    Check.in_range(0, 50, error="Количество фото должно быть от 0 до 50")
-                ],
-                nullable=True,
-                description="Количество загруженных изображений"
-            )
+            'Цена': Column(float, checks=[Check.gt(10000), Check.lt(100000000)], nullable=True, coerce=True),
+            'Площадь': Column(float, checks=[Check.gt(10), Check.lt(1000)], nullable=True, coerce=True),
+            'Количество комнат': Column(int, checks=[Check.in_range(1, 10)], nullable=True, coerce=True),
+            'Этаж': Column(int, checks=[Check.gt(0), Check.lt(100)], nullable=True, coerce=True),
+            'Количество этажей в доме': Column(int, checks=[Check.gt(0), Check.lt(100)], nullable=True, coerce=True),
+            'Адрес': Column(str, nullable=True),
+            'Описание': Column(str, nullable=True),
+            'S3_изображения': Column(object, nullable=True),
+            'Количество_фото': Column(int, checks=[Check.in_range(0, 50)], nullable=True, coerce=True)
         },
         checks=[
             pa.Check(
                 lambda df: (df['Этаж'].isna()) | (df['Количество этажей в доме'].isna()) | 
                            (df['Этаж'] <= df['Количество этажей в доме']),
-                name="floor_less_than_total",
-                error="Этаж не может быть больше общего количества этажей"
+                name="floor_less_than_total"
             ),
-            pa.Check(
-                lambda df: (df['Количество_фото'] == 0) | (df['S3_изображения'].notna()),
-                name="photos_consistency",
-                error="Если есть фото, S3_изображения не должен быть пустым"
-            )
         ],
         strict=False,
         coerce=True
     )
-    
     return schema
-
 
 def convert_types(df):
     df = df.copy()
-    
-    numeric_columns = ['Цена', 'Площадь', 'Этаж', 'Количество этажей в доме', 'Количество комнат', 'Количество_фото']
-    for col in numeric_columns:
+    numeric_cols = ['Цена', 'Площадь', 'Этаж', 'Количество этажей в доме', 'Количество комнат', 'Количество_фото']
+    for col in numeric_cols:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce')
-    
-    string_columns = ['Адрес', 'Метро', 'Описание']
-    for col in string_columns:
-        if col in df.columns:
-            df[col] = df[col].astype(str) if df[col].notna().any() else df[col]
-            df[col] = df[col].str.strip()
-
     return df
 
-
-def validate_data(df, schema):
-    errors = []
-    
+def validate_and_filter(df, schema):
     try:
         valid_df = schema.validate(df, lazy=True)
-        return valid_df, errors
-        
-    except pa.errors.SchemaError as e:
-        if hasattr(e, 'failure_cases') and e.failure_cases is not None:
-            for _, row in e.failure_cases.iterrows():
-                errors.append({
-                    'row_index': row.get('index', 'unknown'),
-                    'column': row.get('column', 'unknown'),
-                    'check': row.get('check', 'unknown'),
-                    'failure_case': str(row.get('failure_case', '')),
-                })
+        return valid_df
+    except pa.errors.SchemaError:
+        print("Фильтрация некорректных данных...")
         
         valid_mask = pd.Series([True] * len(df))
         
-        for col_name, col_schema in schema.columns.items():
-            if col_name in df.columns:
-                for check in col_schema.checks:
-                    try:
-                        if hasattr(check, '_element_wise') and check._element_wise:
-                            result = df[col_name].apply(lambda x: check._check_fn(x) if pd.notna(x) else True)
-                            valid_mask &= result
-                        else:
-                            result = check(df[col_name])
-                            if isinstance(result, pd.Series):
-                                valid_mask &= result
-                    except Exception:
-                        pass
+        if 'Площадь' in df.columns:
+            valid_mask &= (df['Площадь'].isna()) | ((df['Площадь'] >= 10) & (df['Площадь'] <= 1000))
+        
+        if 'Количество комнат' in df.columns:
+            valid_mask &= (df['Количество комнат'].isna()) | ((df['Количество комнат'] >= 1) & (df['Количество комнат'] <= 10))
+        
+        if 'Адрес' in df.columns:
+            valid_mask &= (df['Адрес'].isna()) | (df['Адрес'].astype(str).str.len() >= 3)
+        
+        if 'Этаж' in df.columns and 'Количество этажей в доме' in df.columns:
+            valid_mask &= (df['Этаж'].isna()) | (df['Количество этажей в доме'].isna()) | \
+                          (df['Этаж'] <= df['Количество этажей в доме'])
         
         valid_df = df[valid_mask].copy()
-        #invalid_count = len(df) - len(valid_df)
-        
-        return valid_df, errors
-
+        print(f"Отфильтровано {len(df) - len(valid_df)} записей")
+        print(f"Осталось {len(valid_df)} валидных записей")
+        return valid_df
 
 def save_clean_dataset(df, output_dir="data/final"):
     os.makedirs(output_dir, exist_ok=True)
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     filename = f"{output_dir}/flats_clean_{timestamp}.parquet"
-    
-    df.to_parquet(filename, index=True)
-    
-    csv_filename = filename.replace('.parquet', '.csv')
-    df.to_csv(csv_filename, index=True, encoding='utf-8-sig')
-    
+    df.to_parquet(filename, index=False)
+    print(f"Сохранено: {filename}")
     return filename
 
-
-files = glob.glob("data/processed/flats_with_photos_*.parquet")
-
+files = glob.glob("data/processed/flats_with_photos_*.csv")
 latest_file = sorted(files)[-1]
 
-try:
-    df = pd.read_parquet(latest_file)
-except Exception as e:
-    print(f"Ошибка загрузки: {e}")
-    
+df = pd.read_csv(latest_file)
+if 'Изображения' in df.columns:
+    df = df.drop('Изображения', axis=1)
+
 df = convert_types(df)
 schema = create_schema()
-valid_df, errors = validate_data(df, schema)
-    
+valid_df = validate_and_filter(df, schema)
+
 if len(valid_df) > 0:
     save_clean_dataset(valid_df)
+else:
+    print("Нет валидных данных для сохранения!")

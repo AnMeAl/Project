@@ -6,11 +6,11 @@ import random
 
 flats = []
 
-def time_delay(min_seconds=240, max_seconds=360):
+def time_delay(min_seconds=120, max_seconds=180):
     delay = random.uniform(min_seconds, max_seconds)
     time.sleep(delay)
 
-for i in range(4, 26):
+for i in range(1, 26):
     response = requests.get(f"https://realty.yandex.ru/moskva/snyat/kvartira/?roomsTotal=1&roomsTotal=2&roomsTotal=3&roomsTotal=PLUS_4&page={i}")
     soup = BeautifulSoup(response.text, 'html.parser')
     flats_list = soup.find('div', class_='OffersSerp')
