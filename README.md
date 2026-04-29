@@ -83,32 +83,6 @@
 | Веб-интерфейс | Streamlit | — |
 | Версионирование данных | DVC + Git | — |
 
-## Структура проекта
-
-project/
-├── .dvc/                     # DVC метаданные
-├── data/
-│   ├── final/                # Очищенный датасет (.parquet)
-│   ├── embeddings/           # Эмбеддинги (.npy)
-│   └── multimodal_index/     # FAISS индекс + метаданные
-├── figures/                  # Графики для презентации
-├── src/project/
-│   ├── config.py             # Конфигурация
-│   ├── embeddings.py         # Работа с эмбеддингами
-│   ├── search_engine.py      # Поисковый движок (FAISS)
-│   ├── report_generator.py   # LLM-генерация отчётов
-│   ├── preprocess.py         # Предвычисление эмбеддингов
-│   ├── validate_data.py      # Валидация данных (Pandera)
-│   ├── parser.py             # Парсер Яндекс.Недвижимости
-│   └── s3_storage.py         # Загрузка изображений в MinIO
-├── app.py                    # Streamlit веб-интерфейс
-├── main.py                   # Точка входа
-├── pyproject.toml            # Зависимости
-├── .env                      # Переменные окружения (не в Git)
-├── .env.example              # Пример переменных окружения
-└── README.md                 # Документация
-
-
 ## Запуск проекта
 
 ### 1. Клонирование репозитория
